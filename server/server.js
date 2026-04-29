@@ -8,23 +8,35 @@ const app = express();
 
 const allowedOrigins = [
   "http://localhost:5173",
+  "http://localhost:3000",
   "http://localhost:3001",
-  process.env.CLIENT_ORIGIN,
+  "https://afe-portfolio.vercel.app",
+  /https:\/\/afe-portfolio.*\.vercel\.app$/,
 ].filter(Boolean);
 
 app.use(
   cors({
     origin: (origin, cb) => {
-      if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
-      cb(new Error("Not allowed by CORS"));
+      if (!origin) return cb(null, true);
+
+      const allowed = allowedOrigins.some((o) =>
+        typeof o === "string" ? o === origin : o.test(origin),
+      );
+
+      if (allowed) return cb(null, true);
+
+      console.warn(`CORS blocked: ${origin}`);
+      cb(new Error(`Origin ${origin} not allowed by CORS`));
     },
-    methods: ["GET", "POST"],
+    methods: ["GET", "POST", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
     credentials: true,
   }),
 );
 
-app.use(express.json({ limit: "10kb" }));
+app.options("*", cors());
 
+app.use(express.json({ limit: "10kb" }));
 app.use(express.static(path.join(__dirname, "dist")));
 
 const sanitise = (str = "") =>
@@ -32,6 +44,7 @@ const sanitise = (str = "") =>
     .replace(/<[^>]*>/g, "")
     .trim()
     .slice(0, 2000);
+
 app.get("/api/health", (_req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
 });
@@ -57,16 +70,12 @@ app.post("/api/contact", async (req, res) => {
       },
     });
 
-    if (process.env.NODE_ENV !== "production") {
-      await transporter.verify();
-    }
-
-    const notificationMail = {
+    await transporter.sendMail({
       from: `"Portfolio Contact" <${process.env.EMAIL_USER}>`,
       to: process.env.RECEIVER_EMAIL,
       replyTo: email,
       subject: `📬 New message from ${name} — Portfolio`,
-      text: `Name:    ${name}\nEmail:   ${email}\n\nMessage:\n${message}`,
+      text: `Name: ${name}\nEmail: ${email}\n\nMessage:\n${message}`,
       html: `
         <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#07010f;color:#f0eaff;border-radius:16px;overflow:hidden;">
           <div style="background:linear-gradient(135deg,#6d28d9,#0ea5e9);padding:32px;text-align:center;">
@@ -100,9 +109,9 @@ app.post("/api/contact", async (req, res) => {
           </div>
         </div>
       `,
-    };
+    });
 
-    const autoReplyMail = {
+    await transporter.sendMail({
       from: `"Afe Temidayo" <${process.env.EMAIL_USER}>`,
       to: email,
       subject: `Thanks for reaching out, ${name}! 👋`,
@@ -115,7 +124,6 @@ app.post("/api/contact", async (req, res) => {
           <div style="padding:32px;line-height:1.7;">
             <p>Hi <strong>${name}</strong>,</p>
             <p>Thank you for reaching out through my portfolio. I've received your message and will get back to you as soon as possible — usually within 24 hours.</p>
-            <p>In the meantime, feel free to check out my work:</p>
             <div style="text-align:center;margin:24px 0;">
               <a href="https://github.com/afeDayo" style="background:linear-gradient(135deg,#6d28d9,#0ea5e9);color:#fff;text-decoration:none;padding:12px 28px;border-radius:50px;font-weight:bold;display:inline-block;">
                 View My GitHub
@@ -125,10 +133,7 @@ app.post("/api/contact", async (req, res) => {
           </div>
         </div>
       `,
-    };
-
-    await transporter.sendMail(notificationMail);
-    await transporter.sendMail(autoReplyMail);
+    });
 
     return res.status(200).json({ success: "Message sent successfully." });
   } catch (error) {
