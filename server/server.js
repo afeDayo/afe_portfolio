@@ -1,43 +1,40 @@
 const express = require("express");
 const nodemailer = require("nodemailer");
 const cors = require("cors");
-const path = require("path");
 require("dotenv").config();
 
 const app = express();
 
-const allowedOrigins = [
-  "http://localhost:5173",
-  "http://localhost:3000",
-  "http://localhost:3001",
-  "https://afe-portfolio.vercel.app",
-  /https:\/\/afe-portfolio.*\.vercel\.app$/,
-].filter(Boolean);
+app.options("*", (req, res) => {
+  res.header("Access-Control-Allow-Origin", req.headers.origin || "*");
+  res.header("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+  res.header("Access-Control-Allow-Headers", "Content-Type");
+  res.sendStatus(200);
+});
 
-app.use(
-  cors({
-    origin: (origin, cb) => {
-      if (!origin) return cb(null, true);
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
 
-      const allowed = allowedOrigins.some((o) =>
-        typeof o === "string" ? o === origin : o.test(origin),
-      );
+  const allowed = [
+    "http://localhost:5173",
+    "http://localhost:3000",
+    "https://afe-portfolio.vercel.app/",
+  ];
 
-      if (allowed) return cb(null, true);
+  // Also allow any vercel preview deploy for this project
+  const isVercelPreview =
+    origin && /https:\/\/afe-portfolio.*\.vercel\.app$/.test(origin);
 
-      console.warn(`CORS blocked: ${origin}`);
-      cb(new Error(`Origin ${origin} not allowed by CORS`));
-    },
-    methods: ["GET", "POST", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-    credentials: true,
-  }),
-);
+  if (!origin || allowed.includes(origin) || isVercelPreview) {
+    res.header("Access-Control-Allow-Origin", origin || "*");
+    res.header("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+    res.header("Access-Control-Allow-Headers", "Content-Type");
+  }
 
-app.options("*", cors());
+  next();
+});
 
 app.use(express.json({ limit: "10kb" }));
-app.use(express.static(path.join(__dirname, "dist")));
 
 const sanitise = (str = "") =>
   String(str)
@@ -63,11 +60,17 @@ app.post("/api/contact", async (req, res) => {
 
   try {
     const transporter = nodemailer.createTransport({
-      service: "gmail",
+      host: "smtp.gmail.com",
+      port: 465,
+      secure: true, // SSL — required for port 465
       auth: {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS,
       },
+      // Increase timeouts so Render's cold-start doesn't kill the connection
+      connectionTimeout: 10000,
+      greetingTimeout: 10000,
+      socketTimeout: 15000,
     });
 
     await transporter.sendMail({
@@ -115,7 +118,7 @@ app.post("/api/contact", async (req, res) => {
       from: `"Afe Temidayo" <${process.env.EMAIL_USER}>`,
       to: email,
       subject: `Thanks for reaching out, ${name}! 👋`,
-      text: `Hi ${name},\n\nThank you for getting in touch! I've received your message and will get back to you as soon as possible.\n\nBest,\nAfe Temidayo\nFull-Stack Developer`,
+      text: `Hi ${name},\n\nThank you for getting in touch! I will get back to you as soon as possible.\n\nBest,\nAfe Temidayo`,
       html: `
         <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#07010f;color:#f0eaff;border-radius:16px;overflow:hidden;">
           <div style="background:linear-gradient(135deg,#6d28d9,#0ea5e9);padding:32px;text-align:center;">
@@ -123,7 +126,7 @@ app.post("/api/contact", async (req, res) => {
           </div>
           <div style="padding:32px;line-height:1.7;">
             <p>Hi <strong>${name}</strong>,</p>
-            <p>Thank you for reaching out through my portfolio. I've received your message and will get back to you as soon as possible — usually within 24 hours.</p>
+            <p>Thank you for reaching out through my portfolio. I have received your message and will get back to you as soon as possible — usually within 24 hours.</p>
             <div style="text-align:center;margin:24px 0;">
               <a href="https://github.com/afeDayo" style="background:linear-gradient(135deg,#6d28d9,#0ea5e9);color:#fff;text-decoration:none;padding:12px 28px;border-radius:50px;font-weight:bold;display:inline-block;">
                 View My GitHub
@@ -137,19 +140,17 @@ app.post("/api/contact", async (req, res) => {
 
     return res.status(200).json({ success: "Message sent successfully." });
   } catch (error) {
-    console.error("Email error:", error);
+    console.error("Email error:", error.message);
     return res
       .status(500)
       .json({ error: "Failed to send message. Please try again." });
   }
 });
 
-app.get("*", (_req, res) => {
-  res.sendFile(path.join(__dirname, "dist", "index.html"));
-});
-
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
-  console.log(`✅  Server running on port ${PORT}`);
-  console.log(`📧  Notifications → ${process.env.RECEIVER_EMAIL}`);
+  console.log(`✅ Server running on port ${PORT}`);
+  console.log(
+    `📧 Notifications will be sent to: ${process.env.RECEIVER_EMAIL}`,
+  );
 });
