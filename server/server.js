@@ -6,9 +6,6 @@ require("dotenv").config();
 const app = express();
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-/* ------------------------------------------------------------------ */
-/* CORS                                                                */
-/* ------------------------------------------------------------------ */
 app.options("*", (req, res) => {
   res.header("Access-Control-Allow-Origin", req.headers.origin || "*");
   res.header("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
@@ -21,7 +18,7 @@ app.use((req, res, next) => {
   const allowed = [
     "http://localhost:5173",
     "http://localhost:3000",
-    "https://afe-portfolio.vercel.app", // ← your exact Vercel URL
+    "https://afe-portfolio.vercel.app",
   ];
   const isPreview =
     origin && /https:\/\/afe-portfolio.*\.vercel\.app$/.test(origin);
@@ -34,23 +31,14 @@ app.use((req, res, next) => {
   next();
 });
 
-/* ------------------------------------------------------------------ */
-/* BODY PARSER                                                         */
-/* ------------------------------------------------------------------ */
 app.use(express.json({ limit: "10kb" }));
 
-/* ------------------------------------------------------------------ */
-/* HELPERS                                                             */
-/* ------------------------------------------------------------------ */
 const sanitise = (str = "") =>
   String(str)
     .replace(/<[^>]*>/g, "")
     .trim()
     .slice(0, 2000);
 
-/* ------------------------------------------------------------------ */
-/* ROUTES                                                              */
-/* ------------------------------------------------------------------ */
 app.get("/api/health", (_req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
 });
@@ -68,7 +56,6 @@ app.post("/api/contact", async (req, res) => {
   }
 
   try {
-    // ---- notification email TO you ----
     await resend.emails.send({
       from: "Portfolio Contact <onboarding@resend.dev>",
       to: process.env.RECEIVER_EMAIL,
@@ -109,7 +96,6 @@ app.post("/api/contact", async (req, res) => {
       `,
     });
 
-    // ---- auto-reply TO the sender ----
     await resend.emails.send({
       from: "Afe Temidayo <onboarding@resend.dev>",
       to: email,
@@ -142,11 +128,10 @@ app.post("/api/contact", async (req, res) => {
   }
 });
 
-/* ------------------------------------------------------------------ */
-/* START                                                               */
-/* ------------------------------------------------------------------ */
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-  console.log(`Notifications will be sent to: ${process.env.RECEIVER_EMAIL}`);
+  console.log(`✅ Server running on port ${PORT}`);
+  console.log(
+    `📧 Notifications will be sent to: ${process.env.RECEIVER_EMAIL}`,
+  );
 });
