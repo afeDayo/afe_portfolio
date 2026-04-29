@@ -1,10 +1,14 @@
 const express = require("express");
-const nodemailer = require("nodemailer");
 const cors = require("cors");
+const { Resend } = require("resend");
 require("dotenv").config();
 
 const app = express();
+const resend = new Resend(process.env.RESEND_API_KEY);
 
+/* ------------------------------------------------------------------ */
+/* CORS                                                                */
+/* ------------------------------------------------------------------ */
 app.options("*", (req, res) => {
   res.header("Access-Control-Allow-Origin", req.headers.origin || "*");
   res.header("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
@@ -14,34 +18,39 @@ app.options("*", (req, res) => {
 
 app.use((req, res, next) => {
   const origin = req.headers.origin;
-
   const allowed = [
     "http://localhost:5173",
     "http://localhost:3000",
-    "https://afe-portfolio.vercel.app/",
+    "https://afe-portfolio.vercel.app", // ← your exact Vercel URL
   ];
-
-  // Also allow any vercel preview deploy for this project
-  const isVercelPreview =
+  const isPreview =
     origin && /https:\/\/afe-portfolio.*\.vercel\.app$/.test(origin);
 
-  if (!origin || allowed.includes(origin) || isVercelPreview) {
+  if (!origin || allowed.includes(origin) || isPreview) {
     res.header("Access-Control-Allow-Origin", origin || "*");
     res.header("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
     res.header("Access-Control-Allow-Headers", "Content-Type");
   }
-
   next();
 });
 
+/* ------------------------------------------------------------------ */
+/* BODY PARSER                                                         */
+/* ------------------------------------------------------------------ */
 app.use(express.json({ limit: "10kb" }));
 
+/* ------------------------------------------------------------------ */
+/* HELPERS                                                             */
+/* ------------------------------------------------------------------ */
 const sanitise = (str = "") =>
   String(str)
     .replace(/<[^>]*>/g, "")
     .trim()
     .slice(0, 2000);
 
+/* ------------------------------------------------------------------ */
+/* ROUTES                                                              */
+/* ------------------------------------------------------------------ */
 app.get("/api/health", (_req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
 });
@@ -59,26 +68,12 @@ app.post("/api/contact", async (req, res) => {
   }
 
   try {
-    const transporter = nodemailer.createTransport({
-      host: "smtp.gmail.com",
-      port: 465,
-      secure: true, // SSL — required for port 465
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS,
-      },
-      // Increase timeouts so Render's cold-start doesn't kill the connection
-      connectionTimeout: 10000,
-      greetingTimeout: 10000,
-      socketTimeout: 15000,
-    });
-
-    await transporter.sendMail({
-      from: `"Portfolio Contact" <${process.env.EMAIL_USER}>`,
+    // ---- notification email TO you ----
+    await resend.emails.send({
+      from: "Portfolio Contact <onboarding@resend.dev>",
       to: process.env.RECEIVER_EMAIL,
-      replyTo: email,
-      subject: `📬 New message from ${name} — Portfolio`,
-      text: `Name: ${name}\nEmail: ${email}\n\nMessage:\n${message}`,
+      reply_to: email,
+      subject: `New message from ${name} — Portfolio`,
       html: `
         <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#07010f;color:#f0eaff;border-radius:16px;overflow:hidden;">
           <div style="background:linear-gradient(135deg,#6d28d9,#0ea5e9);padding:32px;text-align:center;">
@@ -114,11 +109,11 @@ app.post("/api/contact", async (req, res) => {
       `,
     });
 
-    await transporter.sendMail({
-      from: `"Afe Temidayo" <${process.env.EMAIL_USER}>`,
+    // ---- auto-reply TO the sender ----
+    await resend.emails.send({
+      from: "Afe Temidayo <onboarding@resend.dev>",
       to: email,
-      subject: `Thanks for reaching out, ${name}! 👋`,
-      text: `Hi ${name},\n\nThank you for getting in touch! I will get back to you as soon as possible.\n\nBest,\nAfe Temidayo`,
+      subject: `Thanks for reaching out, ${name}!`,
       html: `
         <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#07010f;color:#f0eaff;border-radius:16px;overflow:hidden;">
           <div style="background:linear-gradient(135deg,#6d28d9,#0ea5e9);padding:32px;text-align:center;">
@@ -147,10 +142,11 @@ app.post("/api/contact", async (req, res) => {
   }
 });
 
+/* ------------------------------------------------------------------ */
+/* START                                                               */
+/* ------------------------------------------------------------------ */
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
-  console.log(`✅ Server running on port ${PORT}`);
-  console.log(
-    `📧 Notifications will be sent to: ${process.env.RECEIVER_EMAIL}`,
-  );
+  console.log(`Server running on port ${PORT}`);
+  console.log(`Notifications will be sent to: ${process.env.RECEIVER_EMAIL}`);
 });
