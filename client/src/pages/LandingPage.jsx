@@ -144,11 +144,14 @@ const LandingPage = () => {
     if (!validate()) return;
     setLoading(true);
     try {
-      const res = await fetch("/api/contact", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
-      });
+      const res = await fetch(
+        `${import.meta.env.VITE_API_URL || ""}/api/contact`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(formData),
+        },
+      );
       if (res.ok) {
         setIsMessageSent(true);
         setFormData({ name: "", email: "", message: "" });
