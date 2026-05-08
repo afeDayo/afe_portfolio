@@ -39,8 +39,8 @@ const projects = [
     title: "TechFlix — Full-Stack Movie App",
     desc: "Full-stack movie web app with React and Node.js. Features include sign-up, login, browse movies & TV series, and bookmark favourites. Complete streaming experience with JWT auth.",
     tech: ["React", "Node", "MongoDB", "API"],
-    live: "https://tech-flix-fullstack.vercel.app/",
-    code: "https://github.com/afeDayo/TechFlix-fullstack",
+    live: "https://y-oflix.vercel.app/",
+    code: "https://github.com/afeDayo/YOflix.git",
     number: "02",
   },
   {

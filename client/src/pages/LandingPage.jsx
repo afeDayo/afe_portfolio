@@ -197,9 +197,9 @@ const LandingPage = () => {
   const projectPreviews = [
     {
       img: web7,
-      title: "Movie Web-App",
+      title: "YOflix",
       date: "Feb 2024",
-      href: "https://tech-flix-fullstack.vercel.app/",
+      href: "https://y-oflix.vercel.app/",
     },
     {
       img: web2,
